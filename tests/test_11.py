@@ -1,56 +1,53 @@
 import pytest
-from definition_6c40aae59c7f4b8dbb11c3d22e2a9665 import plot_efficient_frontier
 import pandas as pd
-import numpy as np
+from unittest.mock import MagicMock
+from definition_d9df1ea236db4fd78edb2afc6532d52a import plot_efficient_frontier
 
-@pytest.fixture
-def sample_data():
-    returns = pd.Series({'Asset1': 0.15, 'Asset2': 0.20})
-    cov_matrix = pd.DataFrame({
-        'Asset1': {'Asset1': 0.01, 'Asset2': 0.005},
-        'Asset2': {'Asset1': 0.005, 'Asset2': 0.04}
-    })
-    return returns, cov_matrix
 
-def test_plot_efficient_frontier_valid_input(sample_data, monkeypatch):
-    returns, cov_matrix = sample_data
+def test_plot_efficient_frontier_empty_returns():
+    with pytest.raises(ValueError):
+        plot_efficient_frontier(pd.Series(), pd.DataFrame(), num_portfolios=10, static_fallback=False)
 
-    # Mock plotly or matplotlib functions to avoid actual plotting during the test.
-    monkeypatch.setattr("plotly.graph_objects.Figure.show", lambda self: None) # Replace with actual module calls
 
-    try:
-        plot_efficient_frontier(returns, cov_matrix, num_portfolios=10, static_fallback=False)
-    except Exception as e:
-        pytest.fail(f"plot_efficient_frontier raised an exception with valid inputs: {e}")
-
-def test_plot_efficient_frontier_empty_returns(monkeypatch):
-    returns = pd.Series({})
-    cov_matrix = pd.DataFrame()
-
-    monkeypatch.setattr("plotly.graph_objects.Figure.show", lambda self: None)
-
-    with pytest.raises(Exception): # Expect an exception because the dataframe will be empty
+def test_plot_efficient_frontier_returns_covariance_mismatch():
+     with pytest.raises(ValueError, match="Shape of returns and covariance matrix must match."):
+        returns = pd.Series([0.1, 0.2])
+        cov_matrix = pd.DataFrame([[0.01]])
         plot_efficient_frontier(returns, cov_matrix, num_portfolios=10, static_fallback=False)
 
-def test_plot_efficient_frontier_non_dataframe_cov_matrix(sample_data):
-    returns, _ = sample_data
-    cov_matrix = "not a dataframe"
 
-    with pytest.raises(TypeError):
-        plot_efficient_frontier(returns, cov_matrix, num_portfolios=10, static_fallback=False)
+def test_plot_efficient_frontier_static_fallback_matplotlib(monkeypatch):
+    # Mock matplotlib to check if it's called when static_fallback is True
+    mock_plt = MagicMock()
+    monkeypatch.setattr("matplotlib.pyplot", mock_plt)
 
-def test_plot_efficient_frontier_non_series_returns():
-    returns = [1,2,3]
-    cov_matrix = pd.DataFrame([[1,2],[3,4]])
+    returns = pd.Series([0.1, 0.2])
+    cov_matrix = pd.DataFrame([[0.01, 0.005], [0.005, 0.04]])
 
-    with pytest.raises(TypeError):
-        plot_efficient_frontier(returns, cov_matrix, num_portfolios=10, static_fallback=False)
+    plot_efficient_frontier(returns, cov_matrix, num_portfolios=10, static_fallback=True)
 
-def test_plot_efficient_frontier_static_fallback_true(sample_data, monkeypatch):
-    returns, cov_matrix = sample_data
-    monkeypatch.setattr("matplotlib.pyplot.show", lambda: None)
+    assert mock_plt.figure.called
+    assert mock_plt.show.called
 
-    try:
-        plot_efficient_frontier(returns, cov_matrix, num_portfolios=10, static_fallback=True)
-    except Exception as e:
-        pytest.fail(f"plot_efficient_frontier raised exception with static_fallback=True: {e}")
+
+def test_plot_efficient_frontier_plotly_called(monkeypatch):
+    mock_plotly = MagicMock()
+    monkeypatch.setattr("plotly.graph_objects", mock_plotly)
+
+    returns = pd.Series([0.1, 0.2])
+    cov_matrix = pd.DataFrame([[0.01, 0.005], [0.005, 0.04]])
+
+    plot_efficient_frontier(returns, cov_matrix, num_portfolios=10, static_fallback=False)
+
+    assert mock_plotly.Figure.called
+
+
+def test_plot_efficient_frontier_insufficient_data(monkeypatch):
+    mock_plotly = MagicMock()
+    monkeypatch.setattr("plotly.graph_objects", mock_plotly)
+    returns = pd.Series([0.1])
+    cov_matrix = pd.DataFrame([[0.01]])
+
+    plot_efficient_frontier(returns, cov_matrix, num_portfolios=10, static_fallback=False)
+    assert mock_plotly.Figure.called
+
