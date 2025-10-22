@@ -1,55 +1,76 @@
 import pytest
-from definition_4a27807b31f745e3a988d2c5644717b7 import validate_and_summarize_data
 import pandas as pd
-import numpy as np
+from unittest.mock import MagicMock
+from definition_f53e4113aa17454e885baae0826dcbef import validate_and_summarize_data
 
-def create_sample_dataframe(include_nan=False):
-    data = {'Date': ['2023-01-01', '2023-01-02', '2023-01-01'],
-            'Asset_ID': [1, 2, 1],
-            'Open': [10.0, 20.0, 10.0],
-            'High': [12.0, 22.0, 11.0],
-            'Low': [9.0, 19.0, 9.5],
-            'Close': [11.0, 21.0, 10.5],
-            'Volume': [100, 200, 150],
-            'Sentiment_Score': [0.5, 0.7, 0.6]}
+def test_validate_and_summarize_data_empty_dataframe():
+    df = pd.DataFrame()
+    with pytest.raises(ValueError, match="DataFrame is empty"):
+        validate_and_summarize_data(df)
 
-    if include_nan:
-        data['Volume'][0] = np.nan
-        data['Sentiment_Score'][1] = np.nan
-
+def test_validate_and_summarize_data_valid_dataframe():
+    data = {'Date': ['2023-01-01', '2023-01-01', '2023-01-02', '2023-01-02'],
+            'Asset_ID': [1, 2, 1, 2],
+            'Open': [10.0, 20.0, 11.0, 21.0],
+            'High': [12.0, 22.0, 13.0, 23.0],
+            'Low': [9.0, 19.0, 10.0, 20.0],
+            'Close': [11.0, 21.0, 12.0, 22.0],
+            'Volume': [100, 200, 110, 210],
+            'Sentiment_Score': [0.5, 0.6, 0.7, 0.8]}
     df = pd.DataFrame(data)
-    return df
 
-def test_validate_and_summarize_data_valid_df():
-    df = create_sample_dataframe()
+    # Mock the side effects of validate_and_summarize_data
+    df.info = MagicMock()
+    df.isnull = MagicMock(return_value=pd.DataFrame([[False] * len(df.columns)] * len(df), columns=df.columns))
+    df.describe = MagicMock()
+
     cleaned_df = validate_and_summarize_data(df.copy())
+
     assert cleaned_df is not None
+    assert isinstance(cleaned_df, pd.DataFrame)
     assert cleaned_df.equals(df)
+    df.info.assert_called()
+    df.isnull.assert_called()
+    df.describe.assert_called()
 
-def test_validate_and_summarize_data_missing_values_imputation():
-    df = create_sample_dataframe(include_nan=True)
+def test_validate_and_summarize_data_missing_values():
+    data = {'Date': ['2023-01-01', '2023-01-01'],
+            'Asset_ID': [1, 2],
+            'Open': [10.0, 20.0],
+            'High': [12.0, 22.0],
+            'Low': [9.0, 19.0],
+            'Close': [11.0, 21.0],
+            'Volume': [None, 200],
+            'Sentiment_Score': [0.5, None]}
+    df = pd.DataFrame(data)
+
     cleaned_df = validate_and_summarize_data(df.copy())
 
-    assert not cleaned_df['Volume'].isnull().any()
-    assert not cleaned_df['Sentiment_Score'].isnull().any()
+    assert cleaned_df['Volume'].isnull().sum() == 0
+    assert cleaned_df['Sentiment_Score'].isnull().sum() == 0
 
 def test_validate_and_summarize_data_duplicate_primary_key():
-    df = create_sample_dataframe()
-
-    with pytest.raises(Exception) as excinfo:
-      validate_and_summarize_data(df.copy())
-
-    assert "DataFrame does not have unique primary key" in str(excinfo.value)
-
-def test_validate_and_summarize_data_empty_df():
-    df = pd.DataFrame()
-    with pytest.raises(Exception) as excinfo:
-        validate_and_summarize_data(df.copy())
-    assert "DataFrame is empty." in str(excinfo.value)
+    data = {'Date': ['2023-01-01', '2023-01-01'],
+            'Asset_ID': [1, 1],
+            'Open': [10.0, 20.0],
+            'High': [12.0, 22.0],
+            'Low': [9.0, 19.0],
+            'Close': [11.0, 21.0],
+            'Volume': [100, 200],
+            'Sentiment_Score': [0.5, 0.6]}
+    df = pd.DataFrame(data)
+    with pytest.raises(ValueError, match="Duplicate primary key \(Date, Asset_ID\) found"):
+        validate_and_summarize_data(df)
 
 def test_validate_and_summarize_data_incorrect_column_names():
-    df = create_sample_dataframe()
-    df = df.rename(columns={'Date': 'WrongDate'})
-    with pytest.raises(Exception) as excinfo:
-      validate_and_summarize_data(df.copy())
-    assert "DataFrame does not contain the required columns" in str(excinfo.value)
+    data = {'Datee': ['2023-01-01', '2023-01-01'],
+            'Asset_ID': [1, 1],
+            'Open': [10.0, 20.0],
+            'High': [12.0, 22.0],
+            'Low': [9.0, 19.0],
+            'Close': [11.0, 21.0],
+            'Volume': [100, 200],
+            'Sentiment_Score': [0.5, 0.6]}
+    df = pd.DataFrame(data)
+    with pytest.raises(ValueError, match="DataFrame missing expected columns"):
+        validate_and_summarize_data(df)
