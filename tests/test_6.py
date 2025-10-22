@@ -1,69 +1,64 @@
 import pytest
 import pandas as pd
 from sklearn.linear_model import Ridge
-from definition_b03cd37089ed46819ab450d3c1152a34 import generate_predictions
+from definition_317f436436ff4f78bc298e4268829c74 import generate_predictions
 
-def test_generate_predictions_empty_input():
-    """
-    Test case: Model is Ridge, but X_test is empty DataFrame.
-    Expected: Should return an empty Pandas Series.
-    """
-    model = Ridge()
-    X_test = pd.DataFrame()
-    predictions = generate_predictions(model, X_test)
-    assert isinstance(predictions, pd.Series)
-    assert predictions.empty
+@pytest.fixture
+def mock_model():
+    # A simple mock model for testing purposes
+    class MockModel:
+        def predict(self, X):
+            # Return a series of the mean of each row of X
+            return pd.Series(X.mean(axis=1), index=X.index)
+    return MockModel()
 
-def test_generate_predictions_model_not_fitted():
-    """
-    Test case: Model is Ridge but not fitted.
-    Expected: Predict method handles it or raises an exception handled gracefully (returns series with NaN values). We expect a series of the appropriate size.
-    """
-    model = Ridge()
-    X_test = pd.DataFrame({'feature1': [1, 2, 3], 'feature2': [4, 5, 6]})
-    predictions = generate_predictions(model, X_test)
-    assert isinstance(predictions, pd.Series)
-    assert len(predictions) == len(X_test)
-    assert predictions.isnull().any()
+@pytest.fixture
+def sample_X_test():
+    # Create a sample X_test DataFrame
+    data = {'feature1': [1, 2, 3, 4, 5],
+            'feature2': [6, 7, 8, 9, 10]}
+    index = pd.Index(['A', 'B', 'C', 'D', 'E'])
+    return pd.DataFrame(data, index=index)
 
-def test_generate_predictions_standard_case():
-    """
-    Test case: Basic test case with a trained Ridge model and test data.
-    Expected: Returns Pandas Series with length equals to number of rows in X_test.
-    """
-    model = Ridge()
-    X_train = pd.DataFrame({'feature1': [1, 2, 3], 'feature2': [4, 5, 6]})
-    y_train = pd.Series([7, 8, 9])
-    model.fit(X_train, y_train)
-    X_test = pd.DataFrame({'feature1': [4, 5, 6], 'feature2': [7, 8, 9]})
-    predictions = generate_predictions(model, X_test)
-    assert isinstance(predictions, pd.Series)
-    assert len(predictions) == len(X_test)
 
-def test_generate_predictions_single_feature():
-    """
-    Test case: X_test with a single feature.
-    Expected: Function works as expected and provides a Series with the correct length.
-    """
-    model = Ridge()
-    X_train = pd.DataFrame({'feature1': [1, 2, 3]})
-    y_train = pd.Series([4, 5, 6])
-    model.fit(X_train, y_train)
-    X_test = pd.DataFrame({'feature1': [4, 5, 6]})
-    predictions = generate_predictions(model, X_test)
+def test_generate_predictions_typical(mock_model, sample_X_test):
+    model = mock_model
+    predictions = generate_predictions(model, sample_X_test)
     assert isinstance(predictions, pd.Series)
-    assert len(predictions) == len(X_test)
+    assert len(predictions) == len(sample_X_test)
+    assert all(predictions.index == sample_X_test.index)
+    # Check if the values are the average of features
+    expected_values = sample_X_test.mean(axis=1)
+    assert all(predictions == expected_values)
 
-def test_generate_predictions_mismatched_features():
-    """
-    Test case: X_test has features the model hasn't seen during the training phase.
-    Expected: The model should handle unseen features (by ignoring them) or raise an error (handled gracefully). We expect it to return a series of predicted values, even if their quality is poor.
-    """
-    model = Ridge()
-    X_train = pd.DataFrame({'feature1': [1, 2, 3]})
-    y_train = pd.Series([4, 5, 6])
-    model.fit(X_train, y_train)
-    X_test = pd.DataFrame({'feature2': [4, 5, 6]})
-    predictions = generate_predictions(model, X_test)
+
+def test_generate_predictions_empty_dataframe(mock_model):
+    empty_df = pd.DataFrame()
+    model = mock_model
+    predictions = generate_predictions(model, empty_df)
     assert isinstance(predictions, pd.Series)
-    assert len(predictions) == len(X_test)
+    assert len(predictions) == 0
+
+
+def test_generate_predictions_single_row(mock_model):
+    data = {'feature1': [1], 'feature2': [2]}
+    single_row_df = pd.DataFrame(data)
+    model = mock_model
+    predictions = generate_predictions(model, single_row_df)
+    assert isinstance(predictions, pd.Series)
+    assert len(predictions) == 1
+    assert predictions[0] == 1.5
+
+def test_generate_predictions_model_returns_wrong_type(sample_X_test):
+    class BadModel:
+        def predict(self, X):
+            return [1,2,3,4,5]
+
+    bad_model = BadModel()
+    with pytest.raises(Exception):
+        generate_predictions(bad_model, sample_X_test)
+
+def test_generate_predictions_index_preserved(mock_model, sample_X_test):
+    model = mock_model
+    predictions = generate_predictions(model, sample_X_test)
+    assert list(predictions.index) == list(sample_X_test.index)
