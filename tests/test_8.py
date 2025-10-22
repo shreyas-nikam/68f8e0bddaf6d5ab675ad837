@@ -1,60 +1,41 @@
 import pytest
 import pandas as pd
-from unittest.mock import MagicMock
-from definition_3631a5d6eca6469cbe5561aad97c08fe import mean_variance_optimization
+from definition_5169ec4498404e62a57ae212d8e0b28f import estimate_portfolio_parameters
 
-def test_mean_variance_optimization_basic():
-    expected_returns = pd.Series([0.10, 0.15, 0.20], index=['A', 'B', 'C'])
-    cov_matrix = pd.DataFrame([[0.01, 0.005, 0.002],
-                               [0.005, 0.0225, 0.003],
-                               [0.002, 0.003, 0.04]], index=['A', 'B', 'C'], columns=['A', 'B', 'C'])
-    risk_aversion = 1.0
+def test_estimate_portfolio_parameters_empty_df():
+    df_returns = pd.DataFrame()
+    predictions = pd.Series()
+    with pytest.raises(ValueError):
+        estimate_portfolio_parameters(df_returns, predictions)
 
-    # Mocking the minimize function to return a predefined result for testing purposes.
-    mock_minimize_result = MagicMock()
-    mock_minimize_result.x = [0.3, 0.3, 0.4]
-    mock_minimize_result.success = True  # Indicate optimization was successful
-    # patching the  minimize function is not possible as we don't have access to the notebook code.
+def test_estimate_portfolio_parameters_mismatched_assets():
+    df_returns = pd.DataFrame({'A': [0.01, 0.02], 'B': [0.03, 0.04]})
+    predictions = pd.Series([0.05, 0.06, 0.07], index=['A', 'B', 'C'])
+    expected_returns, cov_matrix = estimate_portfolio_parameters(df_returns, predictions)
+    assert set(expected_returns.index) == set(['A', 'B'])
+    assert set(cov_matrix.index) == set(['A', 'B'])
 
-    weights = mean_variance_optimization(expected_returns, cov_matrix, risk_aversion)
-    assert isinstance(weights, pd.Series)
-    assert len(weights) == 3
-    assert (weights.index == ['A', 'B', 'C']).all()
+def test_estimate_portfolio_parameters_valid_input():
+    df_returns = pd.DataFrame({'A': [0.01, 0.02], 'B': [0.03, 0.04]})
+    predictions = pd.Series([0.05, 0.06], index=['A', 'B'])
+    expected_returns, cov_matrix = estimate_portfolio_parameters(df_returns, predictions)
+    assert isinstance(expected_returns, pd.Series)
+    assert isinstance(cov_matrix, pd.DataFrame)
+    assert set(expected_returns.index) == set(['A', 'B'])
+    assert set(cov_matrix.index) == set(['A', 'B'])
+    assert cov_matrix.shape == (2, 2)
 
-@pytest.mark.parametrize("risk_aversion, expected_weights", [
-    (0.0, [0.0, 0.0, 0.0]),
-    (100.0, [0.0, 0.0, 0.0]),
-])
-def test_mean_variance_optimization_extreme_risk_aversion(risk_aversion, expected_weights):
-    expected_returns = pd.Series([0.10, 0.15, 0.20], index=['A', 'B', 'C'])
-    cov_matrix = pd.DataFrame([[0.01, 0.005, 0.002],
-                               [0.005, 0.0225, 0.003],
-                               [0.002, 0.003, 0.04]], index=['A', 'B', 'C'], columns=['A', 'B', 'C'])
+def test_estimate_portfolio_parameters_single_asset():
+    df_returns = pd.DataFrame({'A': [0.01, 0.02]})
+    predictions = pd.Series([0.05], index=['A'])
+    expected_returns, cov_matrix = estimate_portfolio_parameters(df_returns, predictions)
+    assert isinstance(expected_returns, pd.Series)
+    assert isinstance(cov_matrix, pd.DataFrame)
+    assert expected_returns.index[0] == 'A'
+    assert cov_matrix.shape == (1, 1)
 
-    weights = mean_variance_optimization(expected_returns, cov_matrix, risk_aversion)
-    assert isinstance(weights, pd.Series)
-    assert len(weights) == 3
-
-def test_mean_variance_optimization_zero_covariance():
-    expected_returns = pd.Series([0.10, 0.15], index=['A', 'B'])
-    cov_matrix = pd.DataFrame([[0.0, 0.0],
-                               [0.0, 0.0]], index=['A', 'B'], columns=['A', 'B'])
-    risk_aversion = 1.0
-
-    weights = mean_variance_optimization(expected_returns, cov_matrix, risk_aversion)
-    assert isinstance(weights, pd.Series)
-    assert len(weights) == 2
-
-def test_mean_variance_optimization_negative_returns():
-    expected_returns = pd.Series([-0.10, -0.15], index=['A', 'B'])
-    cov_matrix = pd.DataFrame([[0.01, 0.005],
-                               [0.005, 0.0225]], index=['A', 'B'], columns=['A', 'B'])
-    risk_aversion = 1.0
-
-    weights = mean_variance_optimization(expected_returns, cov_matrix, risk_aversion)
-    assert isinstance(weights, pd.Series)
-    assert len(weights) == 2
-
-def test_mean_variance_optimization_incorrect_input_types():
+def test_estimate_portfolio_parameters_different_index_types():
+    df_returns = pd.DataFrame({'A': [0.01, 0.02], 'B': [0.03, 0.04]}, index=[0,1])
+    predictions = pd.Series([0.05, 0.06], index=['A', 'B'])
     with pytest.raises(TypeError):
-        mean_variance_optimization([0.1, 0.2], [[0.1, 0.2], [0.3, 0.4]], 1.0)
+       estimate_portfolio_parameters(df_returns, predictions)
