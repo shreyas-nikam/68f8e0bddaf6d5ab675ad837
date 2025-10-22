@@ -1,55 +1,53 @@
 import pytest
 import pandas as pd
-from definition_55cbed8a0d884a368fef6d9df169e08d import define_target_variable
+from definition_f5c2f63d7cf64fd5a5abf12bd1d37809 import define_target_variable
 
+def test_define_target_variable_empty_df():
+    df = pd.DataFrame({'Close': [], 'Asset_ID': []})
+    with pytest.raises(Exception):
+        define_target_variable(df, forward_days=1)
 
-def create_sample_df(data):
-    return pd.DataFrame(data)
-
-
-def test_define_target_variable_basic():
-    data = {'Date': ['2023-01-01', '2023-01-02', '2023-01-03'],
-            'Asset_ID': [1, 1, 1],
-            'Close': [100, 101, 102]}
-    df = create_sample_df(data)
-    result = define_target_variable(df.copy(), forward_days=1)
-    assert 'Future_Return' in result.columns
-    assert len(result) == 2
-    assert result['Future_Return'].iloc[0] == (101 - 100) / 100
-    assert result['Future_Return'].iloc[1] == (102 - 101) / 101
-
+def test_define_target_variable_single_asset():
+    data = {'Close': [10, 11, 12, 13, 14],
+            'Asset_ID': ['A'] * 5,
+            'Date': pd.to_datetime(['2023-01-01', '2023-01-02', '2023-01-03', '2023-01-04', '2023-01-05'])}
+    df = pd.DataFrame(data)
+    df = df.set_index(['Date','Asset_ID'])
+    result_df = define_target_variable(df.copy(), forward_days=1)
+    expected_return = (11 - 10) / 10
+    assert 'Future_Return' in result_df.columns
+    assert abs(result_df['Future_Return'].iloc[0] - expected_return) < 1e-6
 
 def test_define_target_variable_multiple_assets():
-    data = {'Date': ['2023-01-01', '2023-01-02', '2023-01-01', '2023-01-02'],
-            'Asset_ID': [1, 1, 2, 2],
-            'Close': [100, 101, 50, 51]}
-    df = create_sample_df(data)
-    result = define_target_variable(df.copy(), forward_days=1)
-    assert len(result) == 2
+    data = {'Close': [10, 11, 12, 13, 14, 20, 21, 22, 23, 24],
+            'Asset_ID': ['A'] * 5 + ['B'] * 5,
+            'Date': pd.to_datetime(['2023-01-01', '2023-01-02', '2023-01-03', '2023-01-04', '2023-01-05'] * 2)}
+    df = pd.DataFrame(data)
+    df = df.set_index(['Date','Asset_ID'])
+    result_df = define_target_variable(df.copy(), forward_days=1)
+    assert 'Future_Return' in result_df.columns
+    assert len(result_df) == 8
 
+def test_define_target_variable_forward_days_greater_than_data_length():
+    data = {'Close': [10, 11, 12],
+            'Asset_ID': ['A'] * 3,
+            'Date': pd.to_datetime(['2023-01-01', '2023-01-02', '2023-01-03'])}
+    df = pd.DataFrame(data)
+    df = df.set_index(['Date','Asset_ID'])
+    result_df = define_target_variable(df.copy(), forward_days=5)
+    assert len(result_df) == 0
 
-def test_define_target_variable_forward_days_2():
-        data = {'Date': ['2023-01-01', '2023-01-02', '2023-01-03', '2023-01-04'],
-            'Asset_ID': [1, 1, 1, 1],
-            'Close': [100, 101, 102, 103]}
-        df = create_sample_df(data)
-        result = define_target_variable(df.copy(), forward_days=2)
-        assert 'Future_Return' in result.columns
-        assert len(result) == 2
-        assert result['Future_Return'].iloc[0] == (102 - 100) / 100
-        assert result['Future_Return'].iloc[1] == (103 - 101) / 101
+def test_define_target_variable_zero_forward_days():
+    data = {'Close': [10, 11, 12],
+            'Asset_ID': ['A'] * 3,
+            'Date': pd.to_datetime(['2023-01-01', '2023-01-02', '2023-01-03'])}
+    df = pd.DataFrame(data)
+    df = df.set_index(['Date','Asset_ID'])
+    result_df = define_target_variable(df.copy(), forward_days=0)
 
-def test_define_target_variable_empty_dataframe():
-    data = {'Date': [], 'Asset_ID': [], 'Close': []}
-    df = create_sample_df(data)
-    result = define_target_variable(df.copy(), forward_days=1)
-    assert len(result) == 0
-
-def test_define_target_variable_zero_close_price():
-    data = {'Date': ['2023-01-01', '2023-01-02'],
-            'Asset_ID': [1, 1],
-            'Close': [0, 10]}
-    df = create_sample_df(data)
-    result = define_target_variable(df.copy(), forward_days=1)
-    assert 'Future_Return' in result.columns
-    assert len(result) == 0
+    expected_return_1 = (10-10)/10
+    expected_return_2 = (11-11)/11
+    expected_return_3 = (12-12)/12
+    assert abs(result_df['Future_Return'].iloc[0] - expected_return_1) < 1e-6
+    assert abs(result_df['Future_Return'].iloc[1] - expected_return_2) < 1e-6
+    assert abs(result_df['Future_Return'].iloc[2] - expected_return_3) < 1e-6
