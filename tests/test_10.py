@@ -1,40 +1,47 @@
 import pytest
 import pandas as pd
-from definition_fdb3ab4fcdb34dc7b9abd5ccda1374bf import plot_portfolio_allocation
+from unittest.mock import patch
+from definition_eb15b8dc48f64b35b0af624666fcfd10 import plot_portfolio_allocation
+import matplotlib.pyplot as plt
+import plotly.graph_objects as go
 
-def test_plot_portfolio_allocation_empty_weights():
-    """Test with empty optimal weights."""
-    optimal_weights = pd.Series({})
-    try:
-        plot_portfolio_allocation(optimal_weights, static_fallback=True)
-    except Exception as e:
-        assert False, f"Exception raised with empty weights: {e}"
+@pytest.fixture
+def mock_plotly_show(monkeypatch):
+    """Mocks plotly.graph_objects.Figure.show to prevent actual plot display."""
+    def no_op():
+        pass
+    monkeypatch.setattr(go.Figure, "show", no_op)
 
-def test_plot_portfolio_allocation_single_asset():
+def test_empty_weights(mock_plotly_show):
+    """Test with an empty Series of weights."""
+    optimal_weights = pd.Series([], dtype='float64')
+    with pytest.raises(ValueError) as excinfo:
+        plot_portfolio_allocation(optimal_weights)
+    assert "Input Series is empty" in str(excinfo.value)
+
+
+def test_single_asset(mock_plotly_show):
     """Test with only one asset in the portfolio."""
     optimal_weights = pd.Series({'Asset1': 1.0})
-    try:
-        plot_portfolio_allocation(optimal_weights, static_fallback=True)
-    except Exception as e:
-        assert False, f"Exception raised with single asset: {e}"
+    plot_portfolio_allocation(optimal_weights)
 
-def test_plot_portfolio_allocation_multiple_assets():
-    """Test with multiple assets and positive weights."""
-    optimal_weights = pd.Series({'Asset1': 0.3, 'Asset2': 0.7})
-    try:
-        plot_portfolio_allocation(optimal_weights, static_fallback=True)
-    except Exception as e:
-        assert False, f"Exception raised with multiple assets: {e}"
 
-def test_plot_portfolio_allocation_negative_weights():
-    """Test when there is a negative weight."""
-    optimal_weights = pd.Series({'Asset1': -0.2, 'Asset2': 1.2})
-    try:
-        plot_portfolio_allocation(optimal_weights, static_fallback=True)
-    except Exception as e:
-        assert False, f"Exception raised with single asset: {e}"
+def test_negative_weights(mock_plotly_show):
+    """Test with negative weights (should not happen in a long-only portfolio)."""
+    optimal_weights = pd.Series({'Asset1': 0.3, 'Asset2': -0.2, 'Asset3': 0.9})
+    with pytest.raises(ValueError) as excinfo:
+        plot_portfolio_allocation(optimal_weights)
+    assert "Weights must be non-negative" in str(excinfo.value)
 
-def test_plot_portfolio_allocation_non_series_input():
-    """Test when the input is not a series."""
-    with pytest.raises(TypeError):
-        plot_portfolio_allocation([1, 2, 3], static_fallback=True)
+
+def test_static_fallback_matplotlib():
+    """Test if the static fallback generates a matplotlib plot."""
+    optimal_weights = pd.Series({'Asset1': 0.2, 'Asset2': 0.3, 'Asset3': 0.5})
+    with patch("matplotlib.pyplot.show") as mock_show:
+      plot_portfolio_allocation(optimal_weights, static_fallback=True)
+      mock_show.assert_called()
+
+def test_normal_weights(mock_plotly_show):
+    """Test with a normal set of portfolio weights."""
+    optimal_weights = pd.Series({'Asset1': 0.2, 'Asset2': 0.3, 'Asset3': 0.5})
+    plot_portfolio_allocation(optimal_weights)
